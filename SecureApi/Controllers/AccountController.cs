@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SecureApi.Models;
 using SecureApi.Models.DTOs;
+using SecureApi.Services;
 
 namespace SecureApi.Controllers
 {
@@ -11,11 +12,13 @@ namespace SecureApi.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly TokenService _tokenService;
 
-        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, TokenService tokenService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _tokenService = tokenService;
         }
 
         [HttpPost("register")]
@@ -53,7 +56,8 @@ namespace SecureApi.Controllers
             var result = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
             if (result.Succeeded)
             {
-                return Ok(new { message = "Logged in successfully!" });
+                var token = await _tokenService.CreateToken(user);
+                return Ok(new { token });
             }
             return Unauthorized(new { message = "Invalid email or password." });
         }
