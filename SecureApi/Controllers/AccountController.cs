@@ -13,12 +13,14 @@ namespace SecureApi.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly TokenService _tokenService;
+        private readonly EmailService _emailService;
 
-        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, TokenService tokenService)
+        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, TokenService tokenService, EmailService emailService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _tokenService = tokenService;
+            _emailService = emailService;
         }
 
         [HttpPost("register")]
@@ -36,9 +38,44 @@ namespace SecureApi.Controllers
             var result = await _userManager.CreateAsync(user, model.Password);
             if (result.Succeeded)
             {
-                return Ok(new { message = "User registered successfully." });
+                // Generate and send the email verification token
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+
+                // Construct the confirmation link
+                var confirmationLink = Url.Action(nameof(ConfirmEmail), "Account",
+                    new { token, email = user.Email }, Request.Scheme);
+
+                // Send the email
+                await _emailService.SendEmailAsync(user.Email, "Confirm your email",
+                    $"Please confirm your account by <a href='{confirmationLink}'>clicking here</a>.");
+
+                return Ok(new { Message = "Registration successful! Please check your email to confirm your account." });
             }
             return BadRequest(result.Errors);
+        }
+
+        [HttpGet("confirm-email")]
+        public async Task<IActionResult> ConfirmEmail(string token, string email)
+        {
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(email))
+            {
+                return BadRequest("Invalid email confirmation link.");
+            }
+
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return BadRequest("Invalid email confirmation link.");
+            }
+
+            var result = await _userManager.ConfirmEmailAsync(user, token);
+
+            if (result.Succeeded)
+            {
+                return Ok("Email confirmed successfully! You can now log in.");
+            }
+
+            return BadRequest("Error confirming your email.");
         }
 
         [HttpPost("login")]
@@ -49,7 +86,7 @@ namespace SecureApi.Controllers
                 return BadRequest(ModelState);
             }
             var user = await _userManager.FindByEmailAsync(model.Email);
-            if (user == null)
+            if (user == null || !await _userManager.IsEmailConfirmedAsync(user))
             {
                 return Unauthorized(new { message = "Invalid email or password." });
             }
