@@ -10,10 +10,12 @@ namespace SecureApi.Controllers
     public class AccountController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly SignInManager<ApplicationUser> _signInManager;
 
-        public AccountController(UserManager<ApplicationUser> userManager)
+        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
         {
             _userManager = userManager;
+            _signInManager = signInManager;
         }
 
         [HttpPost("register")]
@@ -34,6 +36,26 @@ namespace SecureApi.Controllers
                 return Ok(new { message = "User registered successfully." });
             }
             return BadRequest(result.Errors);
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto model)
+        {
+            if (model == null || !ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null)
+            {
+                return Unauthorized(new { message = "Invalid email or password." });
+            }
+            var result = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
+            if (result.Succeeded)
+            {
+                return Ok(new { message = "Logged in successfully!" });
+            }
+            return Unauthorized(new { message = "Invalid email or password." });
         }
     }
 }
