@@ -38,6 +38,9 @@ namespace SecureApi.Controllers
             var result = await _userManager.CreateAsync(user, model.Password);
             if (result.Succeeded)
             {
+                // Assign the default role to the new user
+                await _userManager.AddToRoleAsync(user, "User");
+
                 // Generate and send the email verification token
                 var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
 
