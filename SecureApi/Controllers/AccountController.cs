@@ -98,5 +98,56 @@ namespace SecureApi.Controllers
             }
             return Unauthorized(new { message = "Invalid email or password." });
         }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto model)
+        {
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null)
+            {
+                return Ok(new { Message = "If an account with that email exists, a password reset link has been sent." });
+            }
+
+            // Generate the password reset token
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+
+            // Create the reset link
+            var resetLink = Url.Action(nameof(ResetPassword), "Account",
+                new { token, email = user.Email }, Request.Scheme);
+
+            // Send the email
+            await _emailService.SendEmailAsync(user.Email, "Reset your password",
+                $"Please reset your password by <a href='{resetLink}'>clicking here</a>.");
+
+            return Ok(new { Message = "If an account with that email exists, a password reset link has been sent." });
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null)
+            {
+                // To prevent email enumeration attacks, we just return a success message.
+                return Ok(new { Message = "Password has been reset successfully." });
+            }
+
+            // A quick security measure to sanitize the token
+            var token = model.Token.Replace(" ", "+");
+
+            var result = await _userManager.ResetPasswordAsync(user, token, model.NewPassword);
+
+            if (result.Succeeded)
+            {
+                return Ok(new { Message = "Password has been reset successfully." });
+            }
+
+            return BadRequest(result.Errors);
+        }
     }
 }
