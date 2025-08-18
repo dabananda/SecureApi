@@ -41,7 +41,22 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<EmailService>();
 
+// Configure CORS to allow requests from the React frontend
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactFrontend",
+        builder =>
+        {
+            builder.WithOrigins("http://localhost:5173")
+                   .AllowAnyHeader()
+                   .AllowAnyMethod();
+        });
+});
+
 var app = builder.Build();
+
+// Allow CORS for the React frontend
+app.UseCors("AllowReactFrontend");
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
